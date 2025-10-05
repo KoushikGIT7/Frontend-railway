@@ -109,27 +109,14 @@ const ProductDetails: React.FC = () => {
   const [zoomBarcode, setZoomBarcode] = useState<string | null>(null);
 
   const getViewerBase = () => {
-    let base: string = (import.meta as any).env?.VITE_APP_URL || window.location.origin;
-    if (typeof base === 'string' && base.includes('localhost')) {
-      base = base.replace('localhost', '192.168.1.2');
-    }
-    // Map 192.168.1.5 to actual IP 192.168.1.2
-    if (typeof base === 'string' && base.includes('192.168.1.5')) {
-      base = base.replace('192.168.1.5', '192.168.1.2');
-    }
+    // For Netlify/SPA, prefer explicit app URL if provided, else current origin.
+    const base: string = (import.meta as any).env?.VITE_APP_URL || window.location.origin;
     return base;
   };
 
   const getBarcodeBase = () => {
-    // Prefer explicit API base, else derive from viewer base by swapping port to backend
-    const explicit = (import.meta as any).env?.VITE_API_BASE as string | undefined;
-    if (explicit) {
-      // Map 192.168.1.5 to actual IP 192.168.1.2
-      return explicit.replace('192.168.1.5', '192.168.1.2').replace('localhost', '192.168.1.2');
-    }
-    const viewer = getViewerBase();
-    if (viewer.includes(':5173')) return viewer.replace(':5173', ':8788');
-    return viewer;
+    // Frontend-only: use the viewer base itself for QR and barcode link generation
+    return getViewerBase();
   };
 
   // Frontend-only fallback: if a batchId is supplied in the URL and no API base is used, load from Firestore
