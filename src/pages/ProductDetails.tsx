@@ -3,7 +3,8 @@ import { Package, Edit, Save, X, QrCode, Calendar, MapPin, Factory, Hash, Barcod
 import { apiGetAllQRCodes } from '../services/blockchainApi';
 import clsx from 'clsx';
 import { db } from '../config/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, getDoc } from 'firebase/firestore';
+import { useSearchParams } from 'react-router-dom';
 
 interface ProductDetail {
   id: string;
@@ -102,6 +103,7 @@ const ProductDetails: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<ProductDetail | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [qrCodes, setQrCodes] = useState<QRCodeData[]>([]);
+  const [searchParams] = useSearchParams();
   const [loadingQR, setLoadingQR] = useState(false);
   const [viewingQRData, setViewingQRData] = useState<QRCodeData | null>(null);
   const [zoomBarcode, setZoomBarcode] = useState<string | null>(null);
@@ -129,6 +131,40 @@ const ProductDetails: React.FC = () => {
     if (viewer.includes(':5173')) return viewer.replace(':5173', ':8788');
     return viewer;
   };
+
+  // Frontend-only fallback: if a batchId is supplied in the URL and no API base is used, load from Firestore
+  useEffect(() => {
+    const batchParam = searchParams.get('batch') || searchParams.get('batchId');
+    const apiBase = (import.meta as any).env?.VITE_API_URL as string | undefined;
+    if (!batchParam || apiBase) return;
+
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'qrCodes', batchParam));
+        if (snap.exists()) {
+          const data: any = snap.data();
+          const normalized: QRCodeData = {
+            batchId: batchParam,
+            productId: data?.productId || '',
+            manufacturerId: data?.manufacturerId || '',
+            approvalDate: data?.approvalDate || '',
+            uniqueCode: data?.uniqueCode || '',
+            productName: data?.productName || '',
+            category: data?.category || '',
+            qrCodeImage: data?.qrCodeImage || '',
+            barcodeImage: data?.barcodeImage || '',
+            barcodeValue: data?.barcodeValue || '',
+            createdAt: data?.createdAt || new Date().toISOString(),
+            batchDetails: data?.batchDetails
+          };
+          setQrCodes((prev) => {
+            const exists = prev.find((q) => q.batchId === normalized.batchId);
+            return exists ? prev : [normalized, ...prev];
+          });
+        }
+      } catch {}
+    })();
+  }, [searchParams]);
 
   useEffect(() => {
     (async () => {
