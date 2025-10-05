@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { QrCode, Factory, CheckCircle, Hash, MapPin, Calendar, Package, ArrowLeft, Download, Share2 } from 'lucide-react';
 
@@ -172,7 +174,31 @@ const QRViewer: React.FC = () => {
         setQrData(result.qrData);
         try { sessionStorage.setItem(`qr:${batchId}`, JSON.stringify(result.qrData)); } catch {}
       } else {
-        setError('Batch not found. This QR code may be invalid or expired.');
+        // Frontend-only fallback: resolve from Firestore if available
+        try {
+          console.log('🔎 Firestore fallback: qrCodes/', batchId);
+          const snap = await getDoc(doc(db, 'qrCodes', batchId));
+          if (snap.exists()) {
+            const data: any = snap.data();
+            const normalized = {
+              batchId,
+              productId: data?.productId || '',
+              manufacturerId: data?.manufacturerId || '',
+              approvalDate: data?.approvalDate || '',
+              uniqueCode: data?.uniqueCode || '',
+              productName: data?.productName || '',
+              category: data?.category || '',
+              batchDetails: data?.batchDetails,
+            } as QRData;
+            setQrData(normalized);
+            try { sessionStorage.setItem(`qr:${batchId}`, JSON.stringify(normalized)); } catch {}
+          } else {
+            setError('Batch not found. This QR code may be invalid or expired.');
+          }
+        } catch (fsErr) {
+          console.error('Firestore fallback error:', fsErr);
+          setError('Unable to load batch data. Please try again later.');
+        }
       }
     } finally {
       setLoading(false);
